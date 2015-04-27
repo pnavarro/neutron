@@ -228,26 +228,27 @@ class TelefonicaMechanismDriver(api.MechanismDriver):
         if not network_id:
             LOG.debug("DataPlane_Net._get_net_ports(): empty list of SRIOV ports")
             return []
-        ports = self._db.get_network_ports(network_id)
+        port_bindings = self._db.get_network_ports(network_id)
         LOG.debug ("This is the current port_id:%s" % current_port_id)
-        for port in ports:
-            port_id = port['port_id']
+        for port_binding in port_bindings:
+            port_id = port_binding['port_id']
             LOG.debug ("Getting the port: %s" % port_id)
-            port_name = port.get('name')
+            port_name = port_binding.get('name')
             if current_port_id in port_id:
                 continue
-            if 'direct' not in port['vnic_type']:
+            if 'direct' not in port_binding['vnic_type']:
                 LOG.error("Port " +port_id+" "+port_name+" not of binding:vnic_type: 'direct' can not be connected to a data plane net!!!")
                 continue
-            if 'unbound' in port['vif_type']:
+            if 'unbound' in port_binding['vif_type']:
                 continue
-            vif_details_str = port['vif_details']
+            vif_details_str = port_binding['vif_details']
             vif_details = jsonutils.loads(vif_details_str)
-            port_info = {"server_id": port.get("server_uuid"), "mac_address": port.get("mac_address"), "id":port_id,
-                         "name":port_name, "vlan": vif_details['vlan'], "host": port.get("host")}
+            port = self._db.get_port_by_id(port_id)
+            port_info = {"server_id": port_binding.get("server_uuid"), "mac_address": port.get("mac_address"), "id":port_id,
+                         "name":port_name, "vlan": vif_details['vlan'], "host": port_binding.get("host")}
 
             #find information from the list of pci devices
-            profile_str = port["profile"]
+            profile_str = port_binding["profile"]
             profile = jsonutils.loads(profile_str)
             phys_function = self._get_phys_function_from_virtual_function(profile["pci_slot"])
             port_info["pci"] = phys_function

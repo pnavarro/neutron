@@ -34,3 +34,15 @@ class TelefonicaDbMixin(object):
         except exc.NoResultFound:
             query = None
         return query
+
+    def get_port_by_id(self, port_id):
+        session = db_api.get_session()
+        try:
+            query = session.query(models_v2.Port)
+            query = query.filter(models_v2.Port.id.startswith(port_id))
+            port = query.one()
+            if not port:
+                return
+        except exc.NoResultFound:
+            port = None
+        return port
