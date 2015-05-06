@@ -89,18 +89,15 @@ class TelefonicaMechanismDriver(api.MechanismDriver):
                       vnic_type)
             return
 
-        # This is the port list of already configured ports
-        port_list = []
-
         # Bind the host
         self.try_to_bind(context)
         # Get current port
         this_port = self._get_current_port(context)
-        network_id = context.network.current['id']
-        sriov_connection_ports = self._get_net_ports(network_id, this_port['id'])
 
-        port_list.extend(sriov_connection_ports)
+        # This is the port list of already configured ports
+        port_list = self._get_list_of_ports_to_add(context. this_port['id'])
         port_list.append(this_port)
+        network_id = context.network.current['id']
 
         port_byswitch_list = self._get_switch_connections(self.switch_port_info, port_list)
 
@@ -145,11 +142,18 @@ class TelefonicaMechanismDriver(api.MechanismDriver):
         # delete port on the network controller
         # TODO Add the functions to call to the StaticFlow API to remove the flows
         port = context.current
+        port_id = port['id']
         network_id = context.network.current['id']
         switch_dpid = self.switch_port_info["switches"][0]['switch_dpid']
+        # We remove all the flows
         list_flows_to_remove = self._get_list_of_flows_to_remove(port, network_id)
         self._disconnect(self.server, self.port, list_flows_to_remove, switch_dpid)
-        pass
+        # Add the flows of the remaining ports of the network
+        port_list = self._get_list_of_ports_to_add(context, port_id)
+        network_id = context.network.current['id']
+        port_byswitch_list = self._get_switch_connections(self.switch_port_info, port_list)
+        self._connect(self.server, self.port, port_byswitch_list, network_id)
+
 
     def _get_switch_connections(self, switch_port_info, port_list):
         #TODO: Ready only for one switch. This is why 0 is used when reading the list in switch_port_info["switches"]
@@ -237,7 +241,6 @@ class TelefonicaMechanismDriver(api.MechanismDriver):
             if current_port_id in port_id:
                 continue
             if 'direct' not in port_binding['vnic_type']:
-                LOG.error("Port " +port_id+" "+port_name+" not of binding:vnic_type: 'direct' can not be connected to a data plane net!!!")
                 continue
             if 'unbound' in port_binding['vif_type']:
                 continue
@@ -288,17 +291,30 @@ class TelefonicaMechanismDriver(api.MechanismDriver):
     def _get_list_of_flows_to_remove(self, current_port, network_id):
         ports = self._db.get_network_ports(network_id)
         flows_to_remove = []
+        flow_current_broadcast = network_id+'-'+str(current_port['id'])
+        flow_current_broadcast += '-'+'Broadcast'
+        flows_to_remove.append(flow_current_broadcast)
         for port_2 in ports:
-            if current_port['id'] == port_2['port_id']:
-                continue
             flow_name = network_id+'-'+str(current_port['id'])
             flow_name += '-'+str(port_2['port_id'])
             flows_to_remove.append(flow_name)
             flow_inverse_name = network_id+'-'+str(port_2['port_id'])
             flow_inverse_name += '-'+str(current_port['id'])
             flows_to_remove.append(flow_inverse_name)
-        #Tries to remove the Broadcast too
-        flow_name = network_id+'-'+str(current_port['id'])
-        flow_name += '-'+'Broadcast'
-        flows_to_remove.append(flow_name)
+            #Tries to remove the Broadcast too
+            flow_name_broadcast = network_id+'-'+str(port_2['port_id'])
+            flow_name_broadcast += '-'+'Broadcast'
+            flows_to_remove.append(flow_name_broadcast)
+        LOG.debug("Flows to remove: %s" % flows_to_remove)
         return flows_to_remove
+
+    def _get_list_of_ports_to_add(self, context, this_port_id):
+        # This is the port list of already configured ports
+        port_list = []
+
+        network_id = context.network.current['id']
+        sriov_connection_ports = self._get_net_ports(network_id, this_port_id)
+
+        port_list.extend(sriov_connection_ports)
+
+        return port_list
