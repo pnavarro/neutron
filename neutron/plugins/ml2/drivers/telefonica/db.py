@@ -24,7 +24,7 @@ from neutron.plugins.ml2 import models as ml2_models
 
 class TelefonicaDbMixin(object):
 
-    def get_network_ports(self, network_id):
+    def get_network_portbindings(self, network_id):
         session = db_api.get_session()
         try:
             query = session.query(ml2_models.PortBinding)
@@ -34,6 +34,17 @@ class TelefonicaDbMixin(object):
         except exc.NoResultFound:
             query = None
         return query
+
+    def get_network_ports(self, network_id):
+        session = db_api.get_session()
+        try:
+            query = session.query(models_v2.Port)
+            query = query.filter(models_v2.Port.network_id == network_id,
+                                 models_v2.Port.admin_state_up == sql.true(),
+                                 models_v2.Port.device_owner.isnot(None))
+        except exc.NoResultFound:
+            query = None
+        return query.all()
 
     def get_port_by_id(self, port_id):
         session = db_api.get_session()

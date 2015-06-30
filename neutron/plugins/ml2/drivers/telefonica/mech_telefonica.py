@@ -95,7 +95,7 @@ class TelefonicaMechanismDriver(api.MechanismDriver):
         this_port = self._get_current_port(context)
 
         # This is the port list of already configured ports
-        port_list = self._get_list_of_ports_to_add(context. this_port['id'])
+        port_list = self._get_list_of_ports_to_add(context, this_port['id'])
         port_list.append(this_port)
         network_id = context.network.current['id']
 
@@ -122,7 +122,7 @@ class TelefonicaMechanismDriver(api.MechanismDriver):
         :returns: True if segment can be bound for agent
         """
         network_type = segment[api.NETWORK_TYPE]
-        if network_type == p_const.TYPE_VLAN:
+        if network_type == p_const.TYPE_VLAN or network_type == p_const.TYPE_FLAT:
             if agent:
                 mappings = agent['configurations'].get('device_mappings', {})
                 LOG.debug("Checking segment: %(segment)s "
@@ -135,6 +135,9 @@ class TelefonicaMechanismDriver(api.MechanismDriver):
     def get_vif_details(self, context, segment):
         if segment[api.NETWORK_TYPE] == p_const.TYPE_VLAN:
             vlan_id = str(segment[api.SEGMENTATION_ID])
+            self.vif_details[portbindings.VIF_DETAILS_VLAN] = vlan_id
+        elif segment[api.NETWORK_TYPE] == p_const.TYPE_FLAT:
+            vlan_id = "1"
             self.vif_details[portbindings.VIF_DETAILS_VLAN] = vlan_id
         return self.vif_details
 
@@ -160,32 +163,36 @@ class TelefonicaMechanismDriver(api.MechanismDriver):
         switch = switch_port_info["switches"][0]
         LOG.debug("This is the Switch info from the YAML: %s" % switch_port_info)
         LOG.debug("This is the present Switch info : %s" % switch)
+        LOG.debug("This is the port list to analyze connections: %s" % port_list)
         port_byswitch_list = {}
         for port in port_list:
-            port_found = False
             switch_ports = switch["ports"]
             for switch_port in switch_ports:
                 #if it is an external port just check 'alias'
-                #if not 'host_id' in switch_port and not 'phys_function_address' in switch_port and not 'mac_address' in switch_port and  'switch_port' in switch_port and not 'host' in port:
-                #    if port["alias"] == switch_port["alias"]:
-                #        port["input_port"] = switch_port["switch_port"]
-                #        if not port["dpid"] in port_byswitch_list:
-                #            port_byswitch_list[ port["dpid"] ] = list()
-                #        port_byswitch_list[ port["dpid"] ].append(port)
-                #        port_found = True
-                #        break
-                #    else:
-                #        continue
+                if not 'host_id' in switch_port and not 'phys_function_address' in switch_port and not 'mac_address' \
+                        in switch_port and 'switch_port' in switch_port and self._is_external_port(port):
+                    device_id = port.get('device_id')
+                    device_id_json = jsonutils.loads(device_id)
+                    if device_id_json["alias"] == switch_port["alias"]:
+                        port["input_port"] = switch_port["switch_port"]
+                        port["mac_address"] = device_id_json["mac_address"]
+                        port["vlan"] = device_id_json["vlan"]
+                        port["dpid"] = device_id_json["dpid"]
+                        if not port["dpid"] in port_byswitch_list:
+                            port_byswitch_list[port["dpid"]] = []
+                        port_byswitch_list[port["dpid"]].append(port)
+                        break
+                    else:
+                        continue
                 #we only get in the else if the port is not an external port
                 if 'host' in port and 'host_id' in switch_port:
                     if port["pci"] in switch_port["phys_function_address"] and port["host"] in switch_port["host_id"]:
-                        port_found=True
                         port["input_port"] = switch_port["switch_port"]
                         if "mac_address" not in port and port["vlan"]==None and "mac_address" in switch_port:
                             port["mac_address"] = switch_port["mac_address"]
                         if switch_port_info["switches"][0]['switch_dpid'] not in port_byswitch_list:
-                            port_byswitch_list[ switch_port_info["switches"][0]['switch_dpid'] ] = []
-                        port_byswitch_list[ switch_port_info["switches"][0]['switch_dpid'] ].append(port)
+                            port_byswitch_list[ switch_port_info["switches"][0]['switch_dpid']] = []
+                        port_byswitch_list[switch_port_info["switches"][0]['switch_dpid']].append(port)
                         break
         #if len(port_byswitch_list[ switch_port_info["switches"][0]['switch_dpid'] ]) < 2:
         #    LOG.error("DataPlane_Net._get_switch_connections(): Less than 2 ports to connect for 'switch_id': "+
@@ -227,12 +234,38 @@ class TelefonicaMechanismDriver(api.MechanismDriver):
             msg = _('Invalid format'+error_pos)
             raise  cfg.Error(_(message=msg))
 
+    def _is_external_port(self, port):
+        try:
+            device_id = port.get('device_id')
+            json_object = jsonutils.loads(device_id)
+        except ValueError, e:
+            LOG.error("An error was occurred when parsing the device_id of this port: %s" % port)
+            return False
+        mac_address = json_object.get('mac_address')
+        alias = json_object.get('alias')
+        vlan = json_object.get('vlan')
+        dpid = json_object.get('dpid')
+        if not mac_address and not alias and not vlan and not dpid:
+            return False
+        return True
+
+    def _get_external_port(self, network_id):
+        ports = self._db.get_network_ports(network_id)
+        for port in ports:
+            if self._is_external_port(port):
+                device_id = port.get('device_id')
+                json_object = jsonutils.loads(device_id)
+                port_info = {"mac_address": json_object.get('mac_address'),
+                             "id": port['id'], "name": port['id'], "vlan": json_object.get('vlan'),
+                             "device_id": device_id}
+                return port_info
+
     def _get_net_ports(self, network_id, current_port_id):
         sriov_connection_ports = []
         if not network_id:
             LOG.debug("DataPlane_Net._get_net_ports(): empty list of SRIOV ports")
             return []
-        port_bindings = self._db.get_network_ports(network_id)
+        port_bindings = self._db.get_network_portbindings(network_id)
         LOG.debug ("This is the current port_id:%s" % current_port_id)
         for port_binding in port_bindings:
             port_id = port_binding['port_id']
@@ -247,8 +280,9 @@ class TelefonicaMechanismDriver(api.MechanismDriver):
             vif_details_str = port_binding['vif_details']
             vif_details = jsonutils.loads(vif_details_str)
             port = self._db.get_port_by_id(port_id)
-            port_info = {"server_id": port_binding.get("server_uuid"), "mac_address": port.get("mac_address"), "id":port_id,
-                         "name":port_name, "vlan": vif_details['vlan'], "host": port_binding.get("host")}
+            port_info = {"server_id": port_binding.get("server_uuid"), "mac_address": port.get("mac_address"),
+                         "id": port_id, "name": port_name, "vlan": vif_details['vlan'],
+                         "host": port_binding.get("host")}
 
             #find information from the list of pci devices
             profile_str = port_binding["profile"]
@@ -289,7 +323,7 @@ class TelefonicaMechanismDriver(api.MechanismDriver):
         return port_info
 
     def _get_list_of_flows_to_remove(self, current_port, network_id):
-        ports = self._db.get_network_ports(network_id)
+        ports = self._db.get_network_portbindings(network_id)
         flows_to_remove = []
         flow_current_broadcast = network_id+'-'+str(current_port['id'])
         flow_current_broadcast += '-'+'Broadcast'
@@ -314,7 +348,10 @@ class TelefonicaMechanismDriver(api.MechanismDriver):
 
         network_id = context.network.current['id']
         sriov_connection_ports = self._get_net_ports(network_id, this_port_id)
+        external_port = self._get_external_port(network_id)
+        if external_port:
+            LOG.debug("There is an external port in the network, adding it: %s" % external_port)
+            port_list.append(external_port)
 
         port_list.extend(sriov_connection_ports)
-
         return port_list

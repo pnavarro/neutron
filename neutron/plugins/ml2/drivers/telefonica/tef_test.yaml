@@ -17,3 +17,6 @@ switches:
             phys_function_address: '0000:81:00.1'
             mac_address: 92:27:30:49:46:DD
             switch_port: 4
+          - alias: 'Imagenio'
+            switch_port: 5
+
