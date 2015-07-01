@@ -137,7 +137,7 @@ class TelefonicaMechanismDriver(api.MechanismDriver):
             vlan_id = str(segment[api.SEGMENTATION_ID])
             self.vif_details[portbindings.VIF_DETAILS_VLAN] = vlan_id
         elif segment[api.NETWORK_TYPE] == p_const.TYPE_FLAT:
-            vlan_id = "1"
+            vlan_id = "0"
             self.vif_details[portbindings.VIF_DETAILS_VLAN] = vlan_id
         return self.vif_details
 
