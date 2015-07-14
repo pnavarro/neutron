@@ -255,8 +255,11 @@ class TelefonicaMechanismDriver(api.MechanismDriver):
             if self._is_external_port(port):
                 device_id = port.get('device_id')
                 json_object = jsonutils.loads(device_id)
+                vlan_id = json_object.get('vlan')
+                if not vlan_id:
+                    vlan_id = 0
                 port_info = {"mac_address": json_object.get('mac_address'),
-                             "id": port['id'], "name": port['id'], "vlan": json_object.get('vlan'),
+                             "id": port['id'], "name": port['id'], "vlan": vlan_id,
                              "device_id": device_id}
                 return port_info
 
@@ -280,8 +283,11 @@ class TelefonicaMechanismDriver(api.MechanismDriver):
             vif_details_str = port_binding['vif_details']
             vif_details = jsonutils.loads(vif_details_str)
             port = self._db.get_port_by_id(port_id)
+            vlan_id = vif_details['vlan']
+            if not vlan_id:
+                vlan_id = 0
             port_info = {"server_id": port_binding.get("server_uuid"), "mac_address": port.get("mac_address"),
-                         "id": port_id, "name": port_name, "vlan": vif_details['vlan'],
+                         "id": port_id, "name": port_name, "vlan": vlan_id,
                          "host": port_binding.get("host")}
 
             #find information from the list of pci devices
@@ -313,7 +319,10 @@ class TelefonicaMechanismDriver(api.MechanismDriver):
         vif_details_str = binding.vif_details
         vif_details = jsonutils.loads(vif_details_str)
         port_info = {"server_id": port.get("server_uuid"), "mac_address": port.get("mac_address"), "id":port_id, "name":port_name }
-        port_info["vlan"] = vif_details['vlan']
+        vlan_id = vif_details['vlan']
+        if not vlan_id:
+            vlan_id = 0
+        port_info["vlan"] = vlan_id
         profile_str = binding.profile
         profile = jsonutils.loads(profile_str)
         LOG.debug ("My binding profile: %s" % str(profile_str))

@@ -1,5 +1,9 @@
 import httplib
 import json
+from neutron.openstack.common import log
+
+
+LOG = log.getLogger(__name__)
 
 
 class OpenFlow_FL(object):
@@ -66,11 +70,11 @@ class OpenFlow_FL(object):
                         flow['priority'] = "990" #less priority
                     else:
                         flow['dst-mac'] = str(con2['mac_address'])
-                    if con1['vlan'] != None:
+                    if '0' not in con1['vlan']:
                         flow['vlan-id'] = str(con1['vlan'])
         
-                    if con2['vlan'] == None:
-                        if con1['vlan'] != None:
+                    if '0' in con2['vlan']:
+                        if '0' not in con1['vlan']:
                             flow['actions'] = 'strip-vlan,'
                     else:
                         flow['actions'] = 'set-vlan-id='+str(con2['vlan'])+','
@@ -99,7 +103,7 @@ class OpenFlow_FL(object):
                 flow_name += '-'+'Broadcast'
                 index += 1
                 flow['name'] = flow_name
-                if con1['vlan'] != None:
+                if '0' not in con1['vlan']:
                     flow['vlan-id'] = str(con1['vlan'])
                     last_vlan=0 #indicates that a packet contains a vlan, and the vlan
                 else:
@@ -109,7 +113,7 @@ class OpenFlow_FL(object):
                     if con1 == con2:
                         continue  # avoid interconnection with itshelf
                     if last_vlan != con2['vlan']:
-                        if con2['vlan'] != None:
+                        if '0' not in con2['vlan']:
                             actions += 'set-vlan-id='+str(con2['vlan'])+','
                             last_vlan = con2['vlan']
                         else:
