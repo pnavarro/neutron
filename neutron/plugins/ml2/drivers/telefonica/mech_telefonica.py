@@ -175,7 +175,7 @@ class TelefonicaMechanismDriver(api.MechanismDriver):
                     device_id_json = jsonutils.loads(device_id)
                     if device_id_json["alias"] == switch_port["alias"]:
                         port["input_port"] = switch_port["switch_port"]
-                        port["mac_address"] = device_id_json["mac_address"]
+                        port["mac_address"] = device_id_json.get("mac_address")
                         port["vlan"] = device_id_json["vlan"]
                         port["dpid"] = device_id_json["dpid"]
                         if not port["dpid"] in port_byswitch_list:
@@ -241,11 +241,10 @@ class TelefonicaMechanismDriver(api.MechanismDriver):
         except ValueError, e:
             LOG.error("An error was occurred when parsing the device_id of this port: %s" % port)
             return False
-        mac_address = json_object.get('mac_address')
         alias = json_object.get('alias')
         vlan = json_object.get('vlan')
         dpid = json_object.get('dpid')
-        if not mac_address and not alias and not vlan and not dpid:
+        if not alias and not vlan and not dpid:
             return False
         return True
 
