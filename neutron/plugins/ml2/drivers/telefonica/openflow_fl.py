@@ -70,12 +70,12 @@ class OpenFlow_FL(object):
                         flow['priority'] = "990" #less priority
                     else:
                         flow['dst-mac'] = str(con2['mac_address'])
-                    if '0' not in con1['vlan']:
+                    if con1['vlan'] != '0':
                         flow['vlan-id'] = str(con1['vlan'])
         
-                    if '0' in con2['vlan']:
-                        if '0' not in con1['vlan']:
-                            flow['actions'] = 'strip-vlan,'
+                    if con2['vlan'] == '0':
+                        if con1['vlan'] != '0':
+                            flow['actions'] = ''
                     else:
                         flow['actions'] = 'set-vlan-id='+str(con2['vlan'])+','
                     flow['actions'] += 'output='+  str(con2['input_port'])
@@ -113,11 +113,10 @@ class OpenFlow_FL(object):
                     if con1 == con2:
                         continue  # avoid interconnection with itshelf
                     if last_vlan != con2['vlan']:
-                        if '0' not in con2['vlan']:
+                        if con2['vlan'] != '0':
                             actions += 'set-vlan-id='+str(con2['vlan'])+','
                             last_vlan = con2['vlan']
                         else:
-                            actions += 'strip-vlan,'
                             last_vlan = None
                     actions += 'output=' + str(con2['input_port'])  +','
 
