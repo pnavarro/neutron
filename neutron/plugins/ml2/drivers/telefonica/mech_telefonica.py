@@ -24,11 +24,13 @@ from oslo.config import cfg
 
 from neutron.common import constants
 from neutron.extensions import portbindings
-from neutron.openstack.common import log
+#from neutron.openstack.common import log
+from oslo_log import log
 from neutron.plugins.common import constants as p_const
 from neutron.plugins.ml2 import driver_api as api
 from neutron.plugins.ml2.drivers.telefonica import db as tef_db
-from neutron.openstack.common import jsonutils
+#from neutron.openstack.common import jsonutils
+from oslo.serialization import jsonutils
 
 LOG = log.getLogger(__name__)
 
@@ -186,6 +188,8 @@ class TelefonicaMechanismDriver(api.MechanismDriver):
                         continue
                 #we only get in the else if the port is not an external port
                 if 'host' in port and 'host_id' in switch_port:
+                    LOG.debug("This is the port: %s" % port)
+                    LOG.debug("This is the switch_port: %s" % switch_port)
                     if port["pci"] in switch_port["phys_function_address"] and port["host"] in switch_port["host_id"]:
                         port["input_port"] = switch_port["switch_port"]
                         if "mac_address" not in port and port["vlan"]==None and "mac_address" in switch_port:
@@ -238,7 +242,7 @@ class TelefonicaMechanismDriver(api.MechanismDriver):
         try:
             device_id = port.get('device_id')
             json_object = jsonutils.loads(device_id)
-        except ValueError, e:
+        except Exception, e:
             LOG.error("An error was occurred when parsing the device_id of this port: %s" % port)
             return False
         alias = json_object.get('alias')
