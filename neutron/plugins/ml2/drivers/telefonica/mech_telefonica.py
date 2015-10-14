@@ -178,7 +178,7 @@ class TelefonicaMechanismDriver(api.MechanismDriver):
                     if device_id_json["alias"] == switch_port["alias"]:
                         port["input_port"] = switch_port["switch_port"]
                         port["mac_address"] = device_id_json.get("mac_address")
-                        port["vlan"] = device_id_json["vlan"]
+                        port["vlan"] = device_id_json.get("vlan")
                         port["dpid"] = device_id_json["dpid"]
                         if not port["dpid"] in port_byswitch_list:
                             port_byswitch_list[port["dpid"]] = []

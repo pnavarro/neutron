@@ -76,7 +76,7 @@ class OpenFlow_FL(object):
         
                     if con2['vlan'] == '0':
                         if con1['vlan'] != '0':
-                            flow['actions'] = ''
+                            flow['actions'] = 'strip-vlan,'
                     else:
                         flow['actions'] = 'set-vlan-id='+str(con2['vlan'])+','
                     flow['actions'] += 'output='+  str(con2['input_port'])
@@ -118,6 +118,7 @@ class OpenFlow_FL(object):
                             actions += 'set-vlan-id='+str(con2['vlan'])+','
                             last_vlan = con2['vlan']
                         else:
+                            actions += 'strip-vlan,'
                             last_vlan = None
                     actions += 'output=' + str(con2['input_port'])  +','
 
